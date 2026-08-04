@@ -7,12 +7,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
-  apiKey: "ISI_API_KEY_KAMU",
-  authDomain: "ISI_PROJECT_ID.firebaseapp.com",
-  projectId: "ISI_PROJECT_ID",
-  storageBucket: "ISI_PROJECT_ID.appspot.com",
-  messagingSenderId: "ISI_SENDER_ID",
-  appId: "ISI_APP_ID",
+  apiKey: "AIzaSyBiqjo3_1ulCSHWSWULacxyjNz3IABYsiY",
+  authDomain: "cosmic-spend.firebaseapp.com",
+  projectId: "cosmic-spend",
+  storageBucket: "cosmic-spend.firebasestorage.app",
+  messagingSenderId: "172683386482",
+  appId: "1:172683386482:web:837bdf17d7eb0eb67aaceb",
 };
 
 const app = initializeApp(firebaseConfig);
