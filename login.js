@@ -18,6 +18,8 @@ onAuthStateChanged(auth, (user) => {
 const form = document.getElementById("loginForm");
 const errorBox = document.getElementById("authError");
 const errorText = document.getElementById("authErrorText");
+const successBox = document.getElementById("authSuccess");
+const successText = document.getElementById("authSuccessText");
 const loginBtn = document.getElementById("loginBtn");
 const togglePassword = document.getElementById("togglePassword");
 const passwordInput = document.getElementById("password");
@@ -25,7 +27,15 @@ const googleBtn = document.getElementById("googleLoginBtn");
 const forgotLink = document.getElementById("forgotPasswordLink");
 const rememberMe = document.getElementById("rememberMe");
 
+// Kalau baru aja selesai daftar (register.js redirect ke sini), kasih tau usernya
+const params = new URLSearchParams(window.location.search);
+if (params.get("registered") === "1") {
+  successText.textContent = "Akun berhasil dibuat! Silakan masuk.";
+  successBox.classList.remove("hidden");
+}
+
 function showError(message) {
+  successBox.classList.add("hidden");
   errorText.textContent = message;
   errorBox.classList.remove("hidden");
 }

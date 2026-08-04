@@ -4,6 +4,7 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   onAuthStateChanged,
+  signOut,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 // Kalau ternyata sudah login, langsung lempar ke dashboard
@@ -65,7 +66,8 @@ form.addEventListener("submit", async (e) => {
   setLoading(true);
   try {
     await createUserWithEmailAndPassword(auth, email, password);
-    window.location.href = "expense tracker.html";
+    await signOut(auth); // biar user login manual, bukan auto-masuk
+    window.location.href = "login.html?registered=1";
   } catch (err) {
     showError(friendlyError(err.code));
   } finally {
@@ -78,6 +80,7 @@ googleBtn.addEventListener("click", async () => {
   try {
     const provider = new GoogleAuthProvider();
     await signInWithPopup(auth, provider);
+    // Google itu one-step (udah terverifikasi), jadi langsung ke app
     window.location.href = "expense tracker.html";
   } catch (err) {
     showError("Gagal daftar dengan Google. Coba lagi.");
