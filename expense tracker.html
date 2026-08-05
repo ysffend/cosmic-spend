@@ -234,17 +234,5 @@
 
     <script type="module" src="auth-guard.js"></script>
     <script src="expense tracker.js"></script>
-
-    <!-- Script penanganan tombol Keluar -->
-    <script>
-      document.getElementById("logoutBtn").addEventListener("click", () => {
-        // Hapus data sesi jika menggunakan localStorage/sessionStorage
-        localStorage.clear();
-        sessionStorage.clear();
-
-        // Arahkan pengguna ke halaman register.html
-        window.location.href = "register.html";
-      });
-    </script>
   </body>
 </html>
