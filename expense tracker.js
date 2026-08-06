@@ -3,9 +3,28 @@
 // Data persisted in localStorage. No backend needed.
 // =========================================================
 
-const STORAGE_KEY = "cosmicspend_transactions";
-const BUDGET_KEY = "cosmicspend_budgets";
-const SALDO_KEY = "cosmicspend_saldo";
+// Key dasar; nanti disambung UID user yang login (lihat getStorageKey dkk)
+// supaya tiap akun punya data transaksi/budget/saldo masing-masing,
+// bukan satu data global yang ketuker antar akun.
+const STORAGE_KEY_BASE = "cosmicspend_transactions";
+const BUDGET_KEY_BASE = "cosmicspend_budgets";
+const SALDO_KEY_BASE = "cosmicspend_saldo";
+
+function getStorageKey() {
+  return window.cosmicSpendUid
+    ? `${STORAGE_KEY_BASE}_${window.cosmicSpendUid}`
+    : STORAGE_KEY_BASE;
+}
+function getBudgetKey() {
+  return window.cosmicSpendUid
+    ? `${BUDGET_KEY_BASE}_${window.cosmicSpendUid}`
+    : BUDGET_KEY_BASE;
+}
+function getSaldoKey() {
+  return window.cosmicSpendUid
+    ? `${SALDO_KEY_BASE}_${window.cosmicSpendUid}`
+    : SALDO_KEY_BASE;
+}
 
 const CATEGORIES = [
   { id: "makan", label: "Makan & minum", color: "#F4715C" },
@@ -19,9 +38,9 @@ const CATEGORIES = [
 
 const INCOME_CATEGORY = { id: "income", label: "Pemasukan", color: "#4ADE9C" };
 
-let transactions = loadTransactions();
-let budgets = loadBudgets();
-let saldo = loadSaldo();
+let transactions = [];
+let budgets = {};
+let saldo = 0;
 let currentType = "expense";
 let categoryChart = null;
 let trendChart = null;
@@ -29,7 +48,7 @@ let trendChart = null;
 // ---------- Storage helpers ----------
 function loadTransactions() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(getStorageKey());
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -37,12 +56,12 @@ function loadTransactions() {
 }
 
 function saveTransactions() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
+  localStorage.setItem(getStorageKey(), JSON.stringify(transactions));
 }
 
 function loadBudgets() {
   try {
-    const raw = localStorage.getItem(BUDGET_KEY);
+    const raw = localStorage.getItem(getBudgetKey());
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
@@ -50,17 +69,17 @@ function loadBudgets() {
 }
 
 function saveBudgets() {
-  localStorage.setItem(BUDGET_KEY, JSON.stringify(budgets));
+  localStorage.setItem(getBudgetKey(), JSON.stringify(budgets));
 }
 
 function loadSaldo() {
-  const raw = localStorage.getItem(SALDO_KEY);
+  const raw = localStorage.getItem(getSaldoKey());
   const n = raw !== null ? Number(raw) : 0;
   return Number.isFinite(n) ? n : 0;
 }
 
 function saveSaldo(value) {
-  localStorage.setItem(SALDO_KEY, String(value));
+  localStorage.setItem(getSaldoKey(), String(value));
 }
 
 // ---------- Formatting ----------
@@ -599,7 +618,31 @@ function init() {
     .addEventListener("change", renderHistory);
   document.getElementById("exportBtn").addEventListener("click", exportCSV);
 
-  renderAll();
+  loadUserDataAndRender();
+}
+
+// Data baru boleh di-load & dirender setelah kita tau UID user yang login
+// (dikirim oleh authguard.js). Kalau authguard sudah lebih dulu selesai
+// sebelum DOMContentLoaded, window.cosmicSpendUid udah kesedia duluan.
+function loadUserDataAndRender() {
+  if (window.cosmicSpendUid) {
+    transactions = loadTransactions();
+    budgets = loadBudgets();
+    saldo = loadSaldo();
+    renderAll();
+    return;
+  }
+
+  window.addEventListener(
+    "cosmicspend:userReady",
+    () => {
+      transactions = loadTransactions();
+      budgets = loadBudgets();
+      saldo = loadSaldo();
+      renderAll();
+    },
+    { once: true },
+  );
 }
 
 document.addEventListener("DOMContentLoaded", init);
