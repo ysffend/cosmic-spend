@@ -1,29 +1,26 @@
 // =========================================================
 // COSMIC SPEND — app logic
-// Data persisted in localStorage. No backend needed.
+// Data disimpan di Cloud Firestore (1 dokumen per user, di
+// collection "users", id dokumen = UID Firebase Auth-nya).
+// Pake onSnapshot supaya perubahan data langsung sinkron ke
+// semua device yang lagi login akun yang sama secara realtime.
 // =========================================================
 
-// Key dasar; nanti disambung UID user yang login (lihat getStorageKey dkk)
-// supaya tiap akun punya data transaksi/budget/saldo masing-masing,
-// bukan satu data global yang ketuker antar akun.
-const STORAGE_KEY_BASE = "cosmicspend_transactions";
-const BUDGET_KEY_BASE = "cosmicspend_budgets";
-const SALDO_KEY_BASE = "cosmicspend_saldo";
+import { db } from "./firebase-config.js";
+import {
+  doc,
+  setDoc,
+  onSnapshot,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-function getStorageKey() {
-  return window.cosmicSpendUid
-    ? `${STORAGE_KEY_BASE}_${window.cosmicSpendUid}`
-    : STORAGE_KEY_BASE;
-}
-function getBudgetKey() {
-  return window.cosmicSpendUid
-    ? `${BUDGET_KEY_BASE}_${window.cosmicSpendUid}`
-    : BUDGET_KEY_BASE;
-}
-function getSaldoKey() {
-  return window.cosmicSpendUid
-    ? `${SALDO_KEY_BASE}_${window.cosmicSpendUid}`
-    : SALDO_KEY_BASE;
+// Referensi ke dokumen Firestore khusus user yang lagi login:
+// users/{uid} — semua transaksi, budget, dan saldo user itu
+// disimpan sebagai field di 1 dokumen ini.
+function getUserDocRef() {
+  if (!window.cosmicSpendUid) {
+    throw new Error("Belum ada user yang login, UID kosong.");
+  }
+  return doc(db, "users", window.cosmicSpendUid);
 }
 
 const CATEGORIES = [
@@ -46,40 +43,20 @@ let categoryChart = null;
 let trendChart = null;
 
 // ---------- Storage helpers ----------
-function loadTransactions() {
-  try {
-    const raw = localStorage.getItem(getStorageKey());
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+// ---------- Storage helpers (Firestore) ----------
+// Nulis ke Firestore itu network call, jadi semua fungsi ini async.
+// { merge: true } biar cuma field yang dikirim yang ke-update,
+// field lain di dokumen nggak ikut ketimpa/hilang.
+async function saveTransactions() {
+  await setDoc(getUserDocRef(), { transactions }, { merge: true });
 }
 
-function saveTransactions() {
-  localStorage.setItem(getStorageKey(), JSON.stringify(transactions));
+async function saveBudgets() {
+  await setDoc(getUserDocRef(), { budgets }, { merge: true });
 }
 
-function loadBudgets() {
-  try {
-    const raw = localStorage.getItem(getBudgetKey());
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveBudgets() {
-  localStorage.setItem(getBudgetKey(), JSON.stringify(budgets));
-}
-
-function loadSaldo() {
-  const raw = localStorage.getItem(getSaldoKey());
-  const n = raw !== null ? Number(raw) : 0;
-  return Number.isFinite(n) ? n : 0;
-}
-
-function saveSaldo(value) {
-  localStorage.setItem(getSaldoKey(), String(value));
+async function saveSaldo(value) {
+  await setDoc(getUserDocRef(), { saldo: value }, { merge: true });
 }
 
 // ---------- Formatting ----------
@@ -195,7 +172,10 @@ function setupForm() {
 
     if (currentType === "saldo") {
       saldo = amount;
-      saveSaldo(saldo);
+      saveSaldo(saldo).catch((err) => {
+        console.error(err);
+        showToast("Gagal simpan saldo ke server");
+      });
       renderSummary();
       showToast("Saldo diperbarui");
       return;
@@ -219,7 +199,10 @@ function setupForm() {
     };
 
     transactions.unshift(tx);
-    saveTransactions();
+    saveTransactions().catch((err) => {
+      console.error(err);
+      showToast("Gagal simpan transaksi ke server");
+    });
     renderAll();
     form.reset();
     dateInput.value = getLocalDateString();
@@ -291,7 +274,10 @@ function renderHistory() {
     btn.addEventListener("click", () => {
       const id = btn.dataset.delete;
       transactions = transactions.filter((t) => t.id !== id);
-      saveTransactions();
+      saveTransactions().catch((err) => {
+        console.error(err);
+        showToast("Gagal hapus transaksi di server");
+      });
       renderAll();
       showToast("Transaksi dihapus");
     });
@@ -504,7 +490,10 @@ function setupBudgetModal() {
     if (!amount || amount <= 0) return;
 
     budgets[catId] = amount;
-    saveBudgets();
+    saveBudgets().catch((err) => {
+      console.error(err);
+      showToast("Gagal simpan budget ke server");
+    });
     renderBudgets();
     overlay.classList.add("hidden");
     form.reset();
@@ -621,27 +610,43 @@ function init() {
   loadUserDataAndRender();
 }
 
-// Data baru boleh di-load & dirender setelah kita tau UID user yang login
-// (dikirim oleh authguard.js). Kalau authguard sudah lebih dulu selesai
-// sebelum DOMContentLoaded, window.cosmicSpendUid udah kesedia duluan.
+// Data baru boleh mulai disambungkan setelah kita tau UID user yang
+// login (dikirim oleh authguard.js). Kalau authguard sudah lebih dulu
+// selesai sebelum DOMContentLoaded, window.cosmicSpendUid udah kesedia
+// duluan.
 function loadUserDataAndRender() {
   if (window.cosmicSpendUid) {
-    transactions = loadTransactions();
-    budgets = loadBudgets();
-    saldo = loadSaldo();
-    renderAll();
+    startRealtimeSync();
     return;
   }
 
   window.addEventListener(
     "cosmicspend:userReady",
-    () => {
-      transactions = loadTransactions();
-      budgets = loadBudgets();
-      saldo = loadSaldo();
+    () => startRealtimeSync(),
+    { once: true },
+  );
+}
+
+// Dengerin perubahan dokumen Firestore user ini secara realtime.
+// Setiap kali datanya berubah — baik dari device ini SENDIRI abis nyimpen,
+// maupun dari device LAIN yang login akun yang sama — callback ini jalan
+// dan UI langsung dirender ulang. Ini yang bikin data sinkron otomatis
+// antar laptop & HP tanpa perlu refresh manual.
+function startRealtimeSync() {
+  const ref = getUserDocRef();
+  onSnapshot(
+    ref,
+    (snap) => {
+      const data = snap.data() || {};
+      transactions = data.transactions || [];
+      budgets = data.budgets || {};
+      saldo = typeof data.saldo === "number" ? data.saldo : 0;
       renderAll();
     },
-    { once: true },
+    (err) => {
+      console.error("Gagal sinkron data:", err);
+      showToast("Gagal sinkron data dari server");
+    },
   );
 }
 
@@ -681,7 +686,10 @@ function setupSaldoEdit() {
     const commit = () => {
       const newValue = Number(input.value);
       saldo = Number.isFinite(newValue) && newValue >= 0 ? newValue : saldo;
-      saveSaldo(saldo);
+      saveSaldo(saldo).catch((err) => {
+        console.error(err);
+        showToast("Gagal simpan saldo ke server");
+      });
       input.replaceWith(valueEl);
       renderSummary();
       showToast("Saldo diperbarui");
