@@ -8,8 +8,6 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
   onAuthStateChanged,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 // Kalau ternyata sudah login, langsung lempar ke dashboard
@@ -102,108 +100,6 @@ googleBtn.addEventListener("click", async () => {
     window.location.href = "expense tracker.html";
   } catch (err) {
     showError("Gagal masuk dengan Google. Coba lagi.");
-  }
-});
-
-// =========================================================
-// LOGIN VIA NOMOR HP (Phone Auth + OTP SMS)
-//
-// Alurnya beda sama Google (yang cuma 1 klik langsung selesai):
-//   1. User isi nomor HP → klik "Kirim kode OTP"
-//   2. Firebase kirim SMS via signInWithPhoneNumber()
-//   3. Firebase butuh reCAPTCHA dulu sebelum kirim SMS,
-//      supaya orang iseng nggak bisa spam-request OTP ke nomor
-//      siapapun (itu kenapa ada RecaptchaVerifier di bawah)
-//   4. User masukin kode OTP dari SMS → klik "Verifikasi & Masuk"
-//   5. confirmationResult.confirm(kode) itu yang beneran nge-login-in
-// =========================================================
-
-const phoneLoginToggle = document.getElementById("phoneLoginToggle");
-const phoneLoginBox = document.getElementById("phoneLoginBox");
-const phoneNumberInput = document.getElementById("phoneNumber");
-const sendOtpBtn = document.getElementById("sendOtpBtn");
-const otpBox = document.getElementById("otpBox");
-const otpCodeInput = document.getElementById("otpCode");
-const verifyOtpBtn = document.getElementById("verifyOtpBtn");
-
-// Nyimpen "tiket" hasil kirim OTP; dipake lagi pas verifikasi kode.
-let confirmationResult = null;
-// reCAPTCHA cuma boleh dibikin sekali per halaman, makanya di-cache di sini.
-let recaptchaVerifier = null;
-
-phoneLoginToggle.addEventListener("click", () => {
-  phoneLoginBox.classList.toggle("hidden");
-});
-
-function getRecaptchaVerifier() {
-  if (!recaptchaVerifier) {
-    recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-container", {
-      size: "invisible",
-    });
-  }
-  return recaptchaVerifier;
-}
-
-// User biasanya ngetik "0812xxxx", tapi Firebase butuh format
-// internasional "+62812xxxx". Fungsi ini yang nerjemahin.
-function toInternationalFormat(rawInput) {
-  const digitsOnly = rawInput.replace(/\D/g, ""); // buang spasi, strip, dll
-  if (digitsOnly.startsWith("62")) return `+${digitsOnly}`;
-  if (digitsOnly.startsWith("0")) return `+62${digitsOnly.slice(1)}`;
-  return `+${digitsOnly}`;
-}
-
-sendOtpBtn.addEventListener("click", async () => {
-  hideError();
-  const rawPhone = phoneNumberInput.value.trim();
-  if (!rawPhone) {
-    showError("Isi nomor HP dulu.");
-    return;
-  }
-
-  const phoneNumber = toInternationalFormat(rawPhone);
-  sendOtpBtn.disabled = true;
-  sendOtpBtn.textContent = "Mengirim...";
-
-  try {
-    const verifier = getRecaptchaVerifier();
-    confirmationResult = await signInWithPhoneNumber(
-      auth,
-      phoneNumber,
-      verifier,
-    );
-    otpBox.classList.remove("hidden");
-    successText.textContent = "Kode OTP terkirim. Cek SMS kamu.";
-    successBox.classList.remove("hidden");
-  } catch (err) {
-    console.error(err);
-    showError("Gagal kirim OTP. Pastikan nomor HP benar, lalu coba lagi.");
-  } finally {
-    sendOtpBtn.disabled = false;
-    sendOtpBtn.textContent = "Kirim kode OTP";
-  }
-});
-
-verifyOtpBtn.addEventListener("click", async () => {
-  hideError();
-  const code = otpCodeInput.value.trim();
-  if (!code || !confirmationResult) {
-    showError("Masukkan kode OTP yang dikirim ke SMS kamu.");
-    return;
-  }
-
-  verifyOtpBtn.disabled = true;
-  verifyOtpBtn.textContent = "Memverifikasi...";
-
-  try {
-    await confirmationResult.confirm(code);
-    window.location.href = "expense tracker.html";
-  } catch (err) {
-    console.error(err);
-    showError("Kode OTP salah atau sudah kadaluarsa. Coba kirim ulang.");
-  } finally {
-    verifyOtpBtn.disabled = false;
-    verifyOtpBtn.textContent = "Verifikasi & Masuk";
   }
 });
 
