@@ -1,0 +1,25 @@
+{
+  "name": "Cosmic Spend",
+  "short_name": "Cosmic Spend",
+  "description": "Kelola pemasukan, pengeluaran, dan budget kamu dengan tema luar angkasa.",
+  "start_url": "login.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07070f",
+  "theme_color": "#07070f",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
